@@ -11,96 +11,43 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class TaskRecoveryService {
-
     private final TaskRepository repository;
     private final TaskQueue queue;
-
     private final ScheduledExecutorService scheduler;
-
     private final int timeoutSeconds;
 
-    public TaskRecoveryService(
-            TaskRepository repository,
-            TaskQueue queue,
-            int timeoutSeconds) {
-
+    public TaskRecoveryService(TaskRepository repository, TaskQueue queue, int timeoutSeconds) {
         this.repository = repository;
         this.queue = queue;
         this.timeoutSeconds = timeoutSeconds;
-
-        this.scheduler =
-                Executors.newSingleThreadScheduledExecutor();
+        this.scheduler = Executors.newSingleThreadScheduledExecutor();
     }
-
-    // ==========================================
-    // START RECOVERY SERVICE
-    // ==========================================
 
     public void start() {
-
-        System.out.println(
-                "Task recovery service started."
-        );
-
-        scheduler.scheduleAtFixedRate(
-                this::recoverTasks,
-                10,
-                10,
-                TimeUnit.SECONDS
-        );
+        System.out.println("Task recovery service started.");
+        scheduler.scheduleAtFixedRate(this::recoverTasks, 10, 10, TimeUnit.SECONDS);
     }
-
-    // ==========================================
-    // RECOVER STUCK TASKS
-    // ==========================================
 
     private void recoverTasks() {
+        try {
+            int recovered = repository.recoverStuckTasks(timeoutSeconds);
+            if (recovered == 0) {
+                return;
+            }
 
-    try {
+            System.out.println("Recovered " + recovered + " stuck task(s).");
 
-        int recovered =
-                repository.recoverStuckTasks(
-                        timeoutSeconds
-                );
-
-        if (recovered == 0) {
-            return;
+            List<Task> queuedTasks = repository.findByStatus(TaskStatus.QUEUED);
+            for (Task task : queuedTasks) {
+                queue.addTask(task);
+            }
+        } catch (Exception e) {
+            System.err.println("Task recovery failed: " + e.getMessage());
         }
-
-        System.out.println(
-                "Recovered "
-                        + recovered
-                        + " stuck task(s)."
-        );
-
-        List<Task> queuedTasks =
-                repository.findByStatus(
-                        TaskStatus.QUEUED
-                );
-
-        for (Task task : queuedTasks) {
-
-            queue.addTask(task);
-        }
-
-    } catch (Exception e) {
-
-        System.err.println(
-                "Task recovery failed: "
-                        + e.getMessage()
-        );
     }
-}
-    // ==========================================
-    // STOP
-    // ==========================================
 
     public void stop() {
-
         scheduler.shutdownNow();
-
-        System.out.println(
-                "Task recovery service stopped."
-        );
+        System.out.println("Task recovery service stopped.");
     }
 }

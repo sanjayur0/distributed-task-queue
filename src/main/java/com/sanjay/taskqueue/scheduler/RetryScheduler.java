@@ -18,10 +18,6 @@ public class RetryScheduler {
         this.queue = queue;
     }
 
-    // ==========================================
-    // SCHEDULE RETRY
-    // ==========================================
-
     public void scheduleRetry(
             Task task,
             long delay) {
@@ -40,19 +36,11 @@ public class RetryScheduler {
 
                     System.out.println(
                             task.getName()
-                                    + " retry delay completed. "
-                                    + "Added back to queue."
-                    );
-
-                },
+                                    + " retry delay completed. "+ "Added back to queue.");},
                 delay,
                 TimeUnit.SECONDS
         );
     }
-
-    // ==========================================
-    // SHUTDOWN
-    // ==========================================
 
     public void shutdown() {
 
