@@ -88,7 +88,11 @@ Task Recovery Service
     |
     v
 Redis Queue
-Project Structure
+```
+
+## Project Structure
+
+```text
 src/main/java/com/sanjay/taskqueue
 ├── db
 │   ├── Database.java
@@ -112,9 +116,11 @@ src/main/java/com/sanjay/taskqueue
 │   └── TaskRecoveryService.java
 └── worker
     └── Worker.java
+```
 
 ## Task Lifecycle
 
+```text
 QUEUED
   |
   v
@@ -131,14 +137,16 @@ RETRYING
                  |
                  v
                 DLQ
+```
+
 ## Task Priority
 
 Tasks support three priority levels:
 
 Priority	Value
-HIGH	1
-MEDIUM	2
-LOW	3
+HIGH	          1
+MEDIUM	          2
+LOW	          3
 
 Lower priority value means higher processing priority.
 
@@ -204,50 +212,59 @@ http://localhost:8080
 
 ## API Endpoints
 
-Create Task
+
+### Create Task
 POST /tasks
 
 Example:
 curl -X POST "http://localhost:8080/tasks?name=SendEmail&idempotencyKey=email-001&priority=HIGH"
 
-Get All Tasks
+
+### Get All Tasks
 GET /tasks
 
 Example:
 curl "http://localhost:8080/tasks"
 
-Filter Tasks by Status
+
+### Filter Tasks by Status
 GET /tasks?status=QUEUED
 
 Example:
 curl "http://localhost:8080/tasks?status=COMPLETED"
 
-Get Task
+
+### Get Task
 GET /tasks/{id}
 
 Example:
 curl "http://localhost:8080/tasks/<task-id>"
 
-Cancel Task
+
+### Cancel Task
 DELETE /tasks/{id}
 
 Example:
 curl -X DELETE "http://localhost:8080/tasks/<task-id>"
 
-Dead Letter Queue
-Get DLQ Tasks
+
+## Dead Letter Queue
+
+### Get DLQ Tasks
 GET /dlq
 
 Example:
 curl "http://localhost:8080/dlq"
 
-Retry DLQ Task
+
+### Retry DLQ Task
 POST /dlq/{id}/retry
 
 Example:
 curl -X POST "http://localhost:8080/dlq/<dlq-id>/retry"
 
-Delete DLQ Task
+
+### Delete DLQ Task
 DELETE /dlq/{id}
 
 Example:
@@ -318,6 +335,7 @@ Run:
 mvn clean test
 
 The project currently passes the Maven test/build verification.
+
 
 ## Future Improvements
 
