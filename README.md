@@ -339,17 +339,17 @@ The project currently passes the Maven test/build verification.
 
 ## Future Improvements
 
-Authentication and authorization
-Better JSON request/response handling
-Docker and Docker Compose support
-Multiple worker processes
-Distributed worker coordination
-Redis Streams
-Exponential backoff
-Metrics and monitoring
-Structured logging
-Health check endpoint
-Graceful worker shutdown
-Integration tests
-Load testing
-Database migration management
+- Authentication and authorization
+- Better JSON request/response handling
+- Docker and Docker Compose support
+- Multiple worker processes
+- Distributed worker coordination
+- Redis Streams
+- Exponential backoff
+- Metrics and monitoring
+- Structured logging
+- Health check endpoint
+- Graceful worker shutdown
+- Integration tests
+- Load testing
+- Database migration management
