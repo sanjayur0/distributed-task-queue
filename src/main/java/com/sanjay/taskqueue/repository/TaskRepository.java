@@ -15,30 +15,15 @@ import java.util.UUID;
 
 public class TaskRepository {
 
-    // ==========================================
-    // SAVE TASK
-    // ==========================================
-
     public void save(Task task) {
-
         String sql = """
                 INSERT INTO tasks
-                (
-                    id,
-                    name,
-                    priority,
-                    status,
-                    retry_count,
-                    max_retries,
-                    idempotency_key
-                )
+                (id, name, priority, status, retry_count, max_retries, idempotency_key)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, task.getId());
             statement.setString(2, task.getName());
@@ -49,111 +34,61 @@ public class TaskRepository {
             statement.setString(7, task.getIdempotencyKey());
 
             statement.executeUpdate();
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to save task",
-                    e
-            );
+            throw new RuntimeException("Failed to save task", e);
         }
     }
 
-    // ==========================================
-    // FIND TASK BY ID
-    // ==========================================
-
     public Task findById(UUID id) {
-
         String sql = """
-                SELECT id,
-                       name,
-                       idempotency_key,
-                       priority,
-                       status,
-                       retry_count,
-                       max_retries
+                SELECT id, name, idempotency_key, priority, status,
+                       retry_count, max_retries
                 FROM tasks
                 WHERE id = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, id);
 
-            try (ResultSet resultSet =
-                         statement.executeQuery()) {
-
+            try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) {
                     return mapTask(resultSet);
                 }
-
                 return null;
             }
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to find task: " + id,
-                    e
-            );
+            throw new RuntimeException("Failed to find task: " + id, e);
         }
     }
 
-    // ==========================================
-    // FIND TASK BY IDEMPOTENCY KEY
-    // ==========================================
-
-    public Task findByIdempotencyKey(
-            String idempotencyKey) {
-
+    public Task findByIdempotencyKey(String idempotencyKey) {
         String sql = """
-                SELECT id,
-                       name,
-                       idempotency_key,
-                       priority,
-                       status,
-                       retry_count,
-                       max_retries
+                SELECT id, name, idempotency_key, priority, status,
+                       retry_count, max_retries
                 FROM tasks
                 WHERE idempotency_key = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setString(1, idempotencyKey);
 
-            try (ResultSet resultSet =
-                         statement.executeQuery()) {
-
+            try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) {
                     return mapTask(resultSet);
                 }
-
                 return null;
             }
-
         } catch (SQLException e) {
-
             throw new RuntimeException(
-                    "Failed to find task by idempotency key",
-                    e
-            );
+                    "Failed to find task by idempotency key", e);
         }
     }
 
-    // ==========================================
-    // UPDATE COMPLETE TASK
-    // ==========================================
-
     public void update(Task task) {
-
         String sql = """
                 UPDATE tasks
                 SET priority = ?,
@@ -162,18 +97,15 @@ public class TaskRepository {
                     max_retries = ?,
                     idempotency_key = ?,
                     locked_at = CASE
-                        WHEN ? = 'RUNNING'
-                        THEN locked_at
+                        WHEN ? = 'RUNNING' THEN locked_at
                         ELSE NULL
                     END,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setString(1, task.getPriority().name());
             statement.setString(2, task.getStatus().name());
@@ -184,39 +116,26 @@ public class TaskRepository {
             statement.setObject(7, task.getId());
 
             statement.executeUpdate();
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to update task",
-                    e
-            );
+            throw new RuntimeException("Failed to update task", e);
         }
     }
 
-    // ==========================================
-    // UPDATE STATUS
-    // ==========================================
-
     public void updateStatus(Task task) {
-
         String sql = """
                 UPDATE tasks
                 SET status = ?,
                     retry_count = ?,
                     locked_at = CASE
-                        WHEN ? = 'RUNNING'
-                        THEN locked_at
+                        WHEN ? = 'RUNNING' THEN locked_at
                         ELSE NULL
                     END,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setString(1, task.getStatus().name());
             statement.setInt(2, task.getRetryCount());
@@ -224,22 +143,12 @@ public class TaskRepository {
             statement.setObject(4, task.getId());
 
             statement.executeUpdate();
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to update task status",
-                    e
-            );
+            throw new RuntimeException("Failed to update task status", e);
         }
     }
 
-    // ==========================================
-    // CLAIM TASK
-    // ==========================================
-
     public boolean claimTask(UUID taskId) {
-
         String sql = """
                 UPDATE tasks
                 SET status = 'RUNNING',
@@ -249,199 +158,116 @@ public class TaskRepository {
                 AND status IN ('QUEUED', 'RETRYING')
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, taskId);
-
             return statement.executeUpdate() == 1;
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to claim task",
-                    e
-            );
+            throw new RuntimeException("Failed to claim task", e);
         }
     }
 
-    // ==========================================
-    // RENEW TASK LOCK
-    // ==========================================
-
     public boolean renewTaskLock(UUID taskId) {
+        String sql = """
+                UPDATE tasks
+                SET locked_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                AND status = 'RUNNING'
+                """;
 
-    String sql = """
-            UPDATE tasks
-            SET locked_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-            AND status = 'RUNNING'
-            """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
-    try (Connection connection =
-                 DatabaseConnection.getConnection();
-         PreparedStatement statement =
-                 connection.prepareStatement(sql)) {
+            statement.setObject(1, taskId);
 
-        statement.setObject(1, taskId);
+            int rowsUpdated = statement.executeUpdate();
 
-        int rowsUpdated =
-                statement.executeUpdate();
+            System.out.println(
+                    "Heartbeat: task=" + taskId
+                            + " | rowsUpdated=" + rowsUpdated
+            );
 
-        System.out.println(
-                "Heartbeat: task="
-                        + taskId
-                        + " | rowsUpdated="
-                        + rowsUpdated
-        );
-
-        return rowsUpdated == 1;
-
-    } catch (SQLException e) {
-
-        throw new RuntimeException(
-                "Failed to renew task lock",
-                e
-        );
+            return rowsUpdated == 1;
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to renew task lock", e);
+        }
     }
-}
-
-    // ==========================================
-    // RECOVER STUCK TASKS
-    // ==========================================
 
     public int recoverStuckTasks(int timeoutSeconds) {
+        String sql = """
+                UPDATE tasks
+                SET status = 'QUEUED',
+                    locked_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE status = 'RUNNING'
+                AND locked_at IS NOT NULL
+                AND locked_at < CURRENT_TIMESTAMP
+                    - (? * INTERVAL '1 second')
+                """;
 
-    String sql = """
-            UPDATE tasks
-            SET status = 'QUEUED',
-                locked_at = NULL,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE status = 'RUNNING'
-            AND locked_at IS NOT NULL
-            AND locked_at < CURRENT_TIMESTAMP
-                - (? * INTERVAL '1 second')
-            """;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
-    try (Connection connection =
-                 DatabaseConnection.getConnection();
-         PreparedStatement statement =
-                 connection.prepareStatement(sql)) {
-
-        statement.setInt(1, timeoutSeconds);
-
-        return statement.executeUpdate();
-
-    } catch (SQLException e) {
-
-        throw new RuntimeException(
-                "Failed to recover stuck tasks",
-                e
-        );
+            statement.setInt(1, timeoutSeconds);
+            return statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to recover stuck tasks", e);
+        }
     }
-}
-
-    // ==========================================
-    // CHECK IF TASK COMPLETED
-    // ==========================================
 
     public boolean isTaskCompleted(UUID taskId) {
-
         String sql = """
                 SELECT status
                 FROM tasks
                 WHERE id = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, taskId);
 
-            try (ResultSet resultSet =
-                         statement.executeQuery()) {
-
+            try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) {
-
-                    return "COMPLETED".equals(
-                            resultSet.getString("status")
-                    );
+                    return "COMPLETED".equals(resultSet.getString("status"));
                 }
-
                 return false;
             }
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to check task status",
-                    e
-            );
+            throw new RuntimeException("Failed to check task status", e);
         }
     }
 
-    // ==========================================
-    // FIND ALL TASKS
-    // ==========================================
-
     public List<Task> findAll() {
-
         String sql = """
-                SELECT id,
-                       name,
-                       idempotency_key,
-                       priority,
-                       status,
-                       retry_count,
-                       max_retries
+                SELECT id, name, idempotency_key, priority, status,
+                       retry_count, max_retries
                 FROM tasks
                 ORDER BY created_at DESC
                 """;
 
         List<Task> tasks = new ArrayList<>();
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql);
-             ResultSet resultSet =
-                     statement.executeQuery()) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
 
             while (resultSet.next()) {
                 tasks.add(mapTask(resultSet));
             }
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to fetch tasks",
-                    e
-            );
+            throw new RuntimeException("Failed to fetch tasks", e);
         }
 
         return tasks;
     }
 
-    // ==========================================
-    // FIND TASKS BY STATUS
-    // ==========================================
-
-    public List<Task> findByStatus(
-            TaskStatus status) {
-
+    public List<Task> findByStatus(TaskStatus status) {
         String sql = """
-                SELECT id,
-                       name,
-                       idempotency_key,
-                       priority,
-                       status,
-                       retry_count,
-                       max_retries
+                SELECT id, name, idempotency_key, priority, status,
+                       retry_count, max_retries
                 FROM tasks
                 WHERE status = ?
                 ORDER BY created_at DESC
@@ -449,46 +275,28 @@ public class TaskRepository {
 
         List<Task> tasks = new ArrayList<>();
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setString(1, status.name());
 
-            try (ResultSet resultSet =
-                         statement.executeQuery()) {
-
+            try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
                     tasks.add(mapTask(resultSet));
                 }
             }
-
         } catch (SQLException e) {
-
             throw new RuntimeException(
-                    "Failed to fetch tasks by status",
-                    e
-            );
+                    "Failed to fetch tasks by status", e);
         }
 
         return tasks;
     }
 
-    // ==========================================
-    // FIND STALE RUNNING TASKS
-    // ==========================================
-
     public List<Task> findStaleRunningTasks() {
-
         String sql = """
-                SELECT id,
-                       name,
-                       idempotency_key,
-                       priority,
-                       status,
-                       retry_count,
-                       max_retries
+                SELECT id, name, idempotency_key, priority, status,
+                       retry_count, max_retries
                 FROM tasks
                 WHERE status = 'RUNNING'
                 AND locked_at IS NOT NULL
@@ -499,155 +307,87 @@ public class TaskRepository {
 
         List<Task> tasks = new ArrayList<>();
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql);
-             ResultSet resultSet =
-                     statement.executeQuery()) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
 
             while (resultSet.next()) {
                 tasks.add(mapTask(resultSet));
             }
-
         } catch (SQLException e) {
-
             throw new RuntimeException(
-                    "Failed to find stale running tasks",
-                    e
-            );
+                    "Failed to find stale running tasks", e);
         }
 
         return tasks;
     }
-        public int recoverStuckTask(
-        UUID taskId,
-        int timeoutSeconds) {
 
-    String sql = """
-            UPDATE tasks
-            SET status = 'QUEUED',
-                locked_at = NULL,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-            AND status = 'RUNNING'
-            AND locked_at IS NOT NULL
-            AND locked_at < CURRENT_TIMESTAMP
-                - (? * INTERVAL '1 second')
-            """;
-
-    try (Connection connection =
-                 DatabaseConnection.getConnection();
-         PreparedStatement statement =
-                 connection.prepareStatement(sql)) {
-
-        statement.setObject(1, taskId);
-        statement.setInt(2, timeoutSeconds);
-
-        return statement.executeUpdate();
-
-    } catch (SQLException e) {
-
-        throw new RuntimeException(
-                "Failed to recover task: " + taskId,
-                e
-        );
-    }
-}
-        // ==========================================
-// MARK INTERRUPTED EXECUTION AS FAILED
-// ==========================================
-
-public int recoverInterruptedExecutions() {
-
-    String sql = """
-            UPDATE task_executions
-            SET status = 'FAILED'
-            WHERE status = 'RUNNING'
-            """;
-
-    try (Connection connection =
-                 DatabaseConnection.getConnection();
-         PreparedStatement statement =
-                 connection.prepareStatement(sql)) {
-
-        return statement.executeUpdate();
-
-    } catch (SQLException e) {
-
-        throw new RuntimeException(
-                "Failed to recover interrupted executions",
-                e
-        );
-    }
-}
-    // ==========================================
-    // MOVE TASK TO DEAD LETTER QUEUE
-    // ==========================================
-
-    public void moveToDeadLetterQueue(
-            Task task,
-            String reason) {
-
+    public int recoverStuckTask(UUID taskId, int timeoutSeconds) {
         String sql = """
-                INSERT INTO dead_letter_tasks
-                (
-                    id,
-                    task_id,
-                    name,
-                    failure_reason,
-                    retry_count
-                )
-                VALUES (?, ?, ?, ?, ?)
+                UPDATE tasks
+                SET status = 'QUEUED',
+                    locked_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                AND status = 'RUNNING'
+                AND locked_at IS NOT NULL
+                AND locked_at < CURRENT_TIMESTAMP
+                    - (? * INTERVAL '1 second')
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            statement.setObject(
-                    1,
-                    UUID.randomUUID()
-            );
+            statement.setObject(1, taskId);
+            statement.setInt(2, timeoutSeconds);
 
-            statement.setObject(
-                    2,
-                    task.getId()
-            );
-
-            statement.setString(
-                    3,
-                    task.getName()
-            );
-
-            statement.setString(
-                    4,
-                    reason
-            );
-
-            statement.setInt(
-                    5,
-                    task.getRetryCount()
-            );
-
-            statement.executeUpdate();
-
+            return statement.executeUpdate();
         } catch (SQLException e) {
-
             throw new RuntimeException(
-                    "Failed to move task to DLQ",
-                    e
-            );
+                    "Failed to recover task: " + taskId, e);
         }
     }
 
-    // ==========================================
-    // CANCEL TASK
-    // ==========================================
+    public int recoverInterruptedExecutions() {
+        String sql = """
+                UPDATE task_executions
+                SET status = 'FAILED'
+                WHERE status = 'RUNNING'
+                """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            return statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(
+                    "Failed to recover interrupted executions", e);
+        }
+    }
+
+    public void moveToDeadLetterQueue(Task task, String reason) {
+        String sql = """
+                INSERT INTO dead_letter_tasks
+                (id, task_id, name, failure_reason, retry_count)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setObject(1, UUID.randomUUID());
+            statement.setObject(2, task.getId());
+            statement.setString(3, task.getName());
+            statement.setString(4, reason);
+            statement.setInt(5, task.getRetryCount());
+
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to move task to DLQ", e);
+        }
+    }
 
     public boolean cancelTask(UUID taskId) {
-
         String sql = """
                 UPDATE tasks
                 SET status = 'CANCELLED',
@@ -657,303 +397,175 @@ public int recoverInterruptedExecutions() {
                 AND status IN ('QUEUED', 'RETRYING')
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, taskId);
-
             return statement.executeUpdate() == 1;
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to cancel task",
-                    e
-            );
+            throw new RuntimeException("Failed to cancel task", e);
         }
     }
 
-    // ==========================================
-    // FIND ALL DLQ RECORDS
-    // ==========================================
-
     public List<DlqTask> findAllDeadLetterTasks() {
-
         String sql = """
-                SELECT id,
-                       task_id,
-                       name,
-                       failure_reason,
-                       retry_count,
-                       created_at
+                SELECT id, task_id, name, failure_reason,
+                       retry_count, created_at
                 FROM dead_letter_tasks
                 ORDER BY created_at DESC
                 """;
 
         List<DlqTask> tasks = new ArrayList<>();
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql);
-             ResultSet resultSet =
-                     statement.executeQuery()) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
 
             while (resultSet.next()) {
-
-                tasks.add(
-                        new DlqTask(
-                                (UUID) resultSet.getObject("id"),
-                                (UUID) resultSet.getObject("task_id"),
-                                resultSet.getString("name"),
-                                resultSet.getString("failure_reason"),
-                                resultSet.getInt("retry_count"),
-                                resultSet.getTimestamp("created_at")
-                        )
-                );
+                tasks.add(new DlqTask(
+                        (UUID) resultSet.getObject("id"),
+                        (UUID) resultSet.getObject("task_id"),
+                        resultSet.getString("name"),
+                        resultSet.getString("failure_reason"),
+                        resultSet.getInt("retry_count"),
+                        resultSet.getTimestamp("created_at")
+                ));
             }
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to fetch DLQ tasks",
-                    e
-            );
+            throw new RuntimeException("Failed to fetch DLQ tasks", e);
         }
 
         return tasks;
     }
 
-    // ==========================================
-    // RETRY DLQ TASK
-    // ==========================================
+    public boolean retryDeadLetterTask(UUID dlqId) {
+        String findSql = """
+                SELECT task_id
+                FROM dead_letter_tasks
+                WHERE id = ?
+                """;
 
-    // ==========================================
-// RETRY DLQ TASK
-// ==========================================
+        String updateTaskSql = """
+                UPDATE tasks
+                SET status = 'QUEUED',
+                    retry_count = 0,
+                    locked_at = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                AND status = 'FAILED'
+                """;
 
-public boolean retryDeadLetterTask(UUID dlqId) {
+        String deleteExecutionsSql = """
+                DELETE FROM task_executions
+                WHERE task_id = ?
+                """;
 
-    String findSql = """
-            SELECT task_id
-            FROM dead_letter_tasks
-            WHERE id = ?
-            """;
+        String deleteDlqSql = """
+                DELETE FROM dead_letter_tasks
+                WHERE id = ?
+                """;
 
-    String updateTaskSql = """
-            UPDATE tasks
-            SET status = 'QUEUED',
-                retry_count = 0,
-                locked_at = NULL,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-            AND status = 'FAILED'
-            """;
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
 
-    String deleteExecutionsSql = """
-            DELETE FROM task_executions
-            WHERE task_id = ?
-            """;
+            UUID taskId;
 
-    String deleteDlqSql = """
-            DELETE FROM dead_letter_tasks
-            WHERE id = ?
-            """;
+            try (PreparedStatement statement =
+                         connection.prepareStatement(findSql)) {
 
-    try (Connection connection =
-                 DatabaseConnection.getConnection()) {
+                statement.setObject(1, dlqId);
 
-        connection.setAutoCommit(false);
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    if (!resultSet.next()) {
+                        connection.rollback();
+                        return false;
+                    }
 
-        UUID taskId;
+                    taskId = (UUID) resultSet.getObject("task_id");
+                }
+            }
 
-        // ==========================================
-        // STEP 1: FIND DLQ RECORD
-        // ==========================================
+            try (PreparedStatement statement =
+                         connection.prepareStatement(updateTaskSql)) {
 
-        try (PreparedStatement statement =
-                     connection.prepareStatement(findSql)) {
+                statement.setObject(1, taskId);
 
-            statement.setObject(1, dlqId);
-
-            try (ResultSet resultSet =
-                         statement.executeQuery()) {
-
-                if (!resultSet.next()) {
-
+                if (statement.executeUpdate() != 1) {
                     connection.rollback();
-
                     return false;
                 }
-
-                taskId =
-                        (UUID) resultSet.getObject(
-                                "task_id"
-                        );
             }
-        }
 
-        // ==========================================
-        // STEP 2: RESET ORIGINAL TASK
-        // ==========================================
+            try (PreparedStatement statement =
+                         connection.prepareStatement(deleteExecutionsSql)) {
 
-        try (PreparedStatement statement =
-                     connection.prepareStatement(
-                             updateTaskSql)) {
-
-            statement.setObject(1, taskId);
-
-            int rows =
-                    statement.executeUpdate();
-
-            if (rows != 1) {
-
-                connection.rollback();
-
-                return false;
+                statement.setObject(1, taskId);
+                statement.executeUpdate();
             }
-        }
 
-        // ==========================================
-        // STEP 3: DELETE OLD EXECUTION HISTORY
-        // ==========================================
+            try (PreparedStatement statement =
+                         connection.prepareStatement(deleteDlqSql)) {
 
-        try (PreparedStatement statement =
-                     connection.prepareStatement(
-                             deleteExecutionsSql)) {
+                statement.setObject(1, dlqId);
 
-            statement.setObject(1, taskId);
-
-            statement.executeUpdate();
-        }
-
-        // ==========================================
-        // STEP 4: DELETE DLQ RECORD
-        // ==========================================
-
-        try (PreparedStatement statement =
-                     connection.prepareStatement(
-                             deleteDlqSql)) {
-
-            statement.setObject(1, dlqId);
-
-            if (statement.executeUpdate() != 1) {
-
-                connection.rollback();
-
-                return false;
+                if (statement.executeUpdate() != 1) {
+                    connection.rollback();
+                    return false;
+                }
             }
+
+            connection.commit();
+            return true;
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to retry DLQ task", e);
         }
-
-        // ==========================================
-        // STEP 5: COMMIT
-        // ==========================================
-
-        connection.commit();
-
-        return true;
-
-    } catch (SQLException e) {
-
-        throw new RuntimeException(
-                "Failed to retry DLQ task",
-                e
-        );
     }
-}
 
-    // ==========================================
-    // DELETE FROM DLQ
-    // ==========================================
-
-    public boolean deleteFromDeadLetterQueue(
-            UUID dlqId) {
-
+    public boolean deleteFromDeadLetterQueue(UUID dlqId) {
         String sql = """
                 DELETE FROM dead_letter_tasks
                 WHERE id = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, dlqId);
-
             return statement.executeUpdate() == 1;
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to delete DLQ task",
-                    e
-            );
+            throw new RuntimeException("Failed to delete DLQ task", e);
         }
     }
 
-    // ==========================================
-    // GET TASK ID FROM DLQ
-    // ==========================================
-
-    public UUID findTaskIdFromDeadLetterQueue(
-            UUID dlqId) {
-
+    public UUID findTaskIdFromDeadLetterQueue(UUID dlqId) {
         String sql = """
                 SELECT task_id
                 FROM dead_letter_tasks
                 WHERE id = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, dlqId);
 
-            try (ResultSet resultSet =
-                         statement.executeQuery()) {
-
+            try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) {
-
-                    return (UUID) resultSet.getObject(
-                            "task_id"
-                    );
+                    return (UUID) resultSet.getObject("task_id");
                 }
-
                 return null;
             }
-
         } catch (SQLException e) {
-
-            throw new RuntimeException(
-                    "Failed to find DLQ task",
-                    e
-            );
+            throw new RuntimeException("Failed to find DLQ task", e);
         }
     }
 
-    // ==========================================
-    // REMOVE TASK FROM DLQ
-    // ==========================================
-
-    public boolean removeFromDeadLetterQueue(
-            UUID dlqId) {
-
+    public boolean removeFromDeadLetterQueue(UUID dlqId) {
         return deleteFromDeadLetterQueue(dlqId);
     }
 
-    // ==========================================
-    // CLAIM TASK EXECUTION
-    // ==========================================
-
-    public boolean claimTaskExecution(
-            UUID taskId,
-            int attemptNumber) {
-
+    public boolean claimTaskExecution(UUID taskId, int attemptNumber) {
         String sql = """
                 INSERT INTO task_executions
                 (task_id, attempt_number, status)
@@ -962,33 +574,20 @@ public boolean retryDeadLetterTask(UUID dlqId) {
                 DO NOTHING
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, taskId);
             statement.setInt(2, attemptNumber);
 
             return statement.executeUpdate() == 1;
-
         } catch (SQLException e) {
-
             throw new RuntimeException(
-                    "Failed to claim task execution",
-                    e
-            );
+                    "Failed to claim task execution", e);
         }
     }
 
-    // ==========================================
-    // GET EXECUTION STATUS
-    // ==========================================
-
-    public String getTaskExecutionStatus(
-            UUID taskId,
-            int attemptNumber) {
-
+    public String getTaskExecutionStatus(UUID taskId, int attemptNumber) {
         String sql = """
                 SELECT status
                 FROM task_executions
@@ -996,41 +595,25 @@ public boolean retryDeadLetterTask(UUID dlqId) {
                 AND attempt_number = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, taskId);
             statement.setInt(2, attemptNumber);
 
-            try (ResultSet resultSet =
-                         statement.executeQuery()) {
-
+            try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) {
                     return resultSet.getString("status");
                 }
-
                 return null;
             }
-
         } catch (SQLException e) {
-
             throw new RuntimeException(
-                    "Failed to get task execution status",
-                    e
-            );
+                    "Failed to get task execution status", e);
         }
     }
 
-    // ==========================================
-    // MARK EXECUTION COMPLETED
-    // ==========================================
-
-    public void markTaskExecutionCompleted(
-            UUID taskId,
-            int attemptNumber) {
-
+    public void markTaskExecutionCompleted(UUID taskId, int attemptNumber) {
         String sql = """
                 UPDATE task_executions
                 SET status = 'COMPLETED',
@@ -1039,33 +622,19 @@ public boolean retryDeadLetterTask(UUID dlqId) {
                 AND attempt_number = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, taskId);
             statement.setInt(2, attemptNumber);
-
             statement.executeUpdate();
-
         } catch (SQLException e) {
-
             throw new RuntimeException(
-                    "Failed to mark task execution completed",
-                    e
-            );
+                    "Failed to mark task execution completed", e);
         }
     }
 
-    // ==========================================
-    // MARK EXECUTION FAILED
-    // ==========================================
-
-    public void markTaskExecutionFailed(
-            UUID taskId,
-            int attemptNumber) {
-
+    public void markTaskExecutionFailed(UUID taskId, int attemptNumber) {
         String sql = """
                 UPDATE task_executions
                 SET status = 'FAILED'
@@ -1073,51 +642,26 @@ public boolean retryDeadLetterTask(UUID dlqId) {
                 AND attempt_number = ?
                 """;
 
-        try (Connection connection =
-                     DatabaseConnection.getConnection();
-             PreparedStatement statement =
-                     connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setObject(1, taskId);
             statement.setInt(2, attemptNumber);
-
             statement.executeUpdate();
-
         } catch (SQLException e) {
-
             throw new RuntimeException(
-                    "Failed to mark task execution failed",
-                    e
-            );
+                    "Failed to mark task execution failed", e);
         }
     }
 
-    // ==========================================
-    // MAP DATABASE ROW -> TASK
-    // ==========================================
-
-    private Task mapTask(
-            ResultSet resultSet)
-            throws SQLException {
-
+    private Task mapTask(ResultSet resultSet) throws SQLException {
         return new Task(
-
                 (UUID) resultSet.getObject("id"),
-
                 resultSet.getString("name"),
-
                 resultSet.getString("idempotency_key"),
-
-                TaskPriority.valueOf(
-                        resultSet.getString("priority")
-                ),
-
-                TaskStatus.valueOf(
-                        resultSet.getString("status")
-                ),
-
+                TaskPriority.valueOf(resultSet.getString("priority")),
+                TaskStatus.valueOf(resultSet.getString("status")),
                 resultSet.getInt("retry_count"),
-
                 resultSet.getInt("max_retries")
         );
     }

@@ -5,8 +5,8 @@ import com.sanjay.taskqueue.model.TaskStatus;
 import com.sanjay.taskqueue.queue.TaskQueue;
 import com.sanjay.taskqueue.repository.TaskRepository;
 
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -18,20 +18,12 @@ public class Worker implements Runnable {
 
     private volatile boolean running = true;
 
-    // ==========================================
-    // HEARTBEAT
-    // ==========================================
-
     private final ScheduledExecutorService heartbeatExecutor =
             Executors.newSingleThreadScheduledExecutor();
 
     private ScheduledFuture<?> heartbeatTask;
 
     private static final long HEARTBEAT_INTERVAL_SECONDS = 10;
-
-    // ==========================================
-    // CONSTRUCTOR
-    // ==========================================
 
     public Worker(
             String workerName,
@@ -43,29 +35,16 @@ public class Worker implements Runnable {
         this.repository = repository;
     }
 
-    // ==========================================
-    // SHUTDOWN
-    // ==========================================
-
     public void shutdown() {
-
         running = false;
-
         stopHeartbeat();
-
         heartbeatExecutor.shutdownNow();
     }
-
-    // ==========================================
-    // WORKER LOOP
-    // ==========================================
 
     @Override
     public void run() {
 
-        System.out.println(
-                workerName + " started."
-        );
+        System.out.println(workerName + " started.");
 
         while (running) {
 
@@ -73,47 +52,22 @@ public class Worker implements Runnable {
             int attemptNumber = 0;
 
             try {
-
-                // ==========================================
-                // GET TASK
-                // ==========================================
-
                 task = queue.getTask();
 
                 if (task == null) {
                     continue;
                 }
 
-                // ==========================================
-                // CALCULATE ATTEMPT
-                // ==========================================
+                attemptNumber = task.getRetryCount() + 1;
 
-                attemptNumber =
-                        task.getRetryCount() + 1;
-
-                // ==========================================
-                // CLAIM TASK
-                // ==========================================
-
-                boolean claimed =
-                        repository.claimTask(
-                                task.getId()
-                        );
+                boolean claimed = repository.claimTask(task.getId());
 
                 if (!claimed) {
-
                     System.out.println(
-                            workerName
-                                    + " could not claim task "
-                                    + task.getId()
+                            workerName + " could not claim task " + task.getId()
                     );
-
                     continue;
                 }
-
-                // ==========================================
-                // CLAIM EXECUTION
-                // ==========================================
 
                 boolean executionClaimed =
                         repository.claimTaskExecution(
@@ -129,10 +83,6 @@ public class Worker implements Runnable {
                                     attemptNumber
                             );
 
-                    // ==========================================
-                    // ALREADY COMPLETED
-                    // ==========================================
-
                     if ("COMPLETED".equals(executionStatus)) {
 
                         System.out.println(
@@ -144,18 +94,10 @@ public class Worker implements Runnable {
                                         + " | Already COMPLETED"
                         );
 
-                        task.setStatus(
-                                TaskStatus.COMPLETED
-                        );
-
+                        task.setStatus(TaskStatus.COMPLETED);
                         repository.updateStatus(task);
-
                         continue;
                     }
-
-                    // ==========================================
-                    // CURRENTLY RUNNING
-                    // ==========================================
 
                     if ("RUNNING".equals(executionStatus)) {
 
@@ -168,18 +110,10 @@ public class Worker implements Runnable {
                                         + " | Already RUNNING"
                         );
 
-                        task.setStatus(
-                                TaskStatus.QUEUED
-                        );
-
+                        task.setStatus(TaskStatus.QUEUED);
                         repository.updateStatus(task);
-
                         continue;
                     }
-
-                    // ==========================================
-                    // PREVIOUS EXECUTION FAILED
-                    // ==========================================
 
                     if ("FAILED".equals(executionStatus)) {
 
@@ -191,32 +125,13 @@ public class Worker implements Runnable {
                                         + attemptNumber
                         );
 
-                        /*
-                         * IMPORTANT:
-                         *
-                         * Do NOT increment retry count here
-                         * and then call handleFailure(), because
-                         * handleFailure() already increments it.
-                         *
-                         * Just handle the failure once.
-                         */
-
                         handleFailure(task);
-
-                        continue;
                     }
 
                     continue;
                 }
 
-                // ==========================================
-                // MARK TASK RUNNING
-                // ==========================================
-
-                task.setStatus(
-                        TaskStatus.RUNNING
-                );
-
+                task.setStatus(TaskStatus.RUNNING);
                 repository.updateStatus(task);
 
                 System.out.println(
@@ -227,73 +142,41 @@ public class Worker implements Runnable {
                                 + attemptNumber
                 );
 
-                // ==========================================
-                // START HEARTBEAT
-                // ==========================================
-
                 startHeartbeat(task);
-
-                // ==========================================
-                // EXECUTE TASK
-                // ==========================================
 
                 Thread.sleep(60000);
 
-                // ==========================================
-                // SIMULATE FAILURE
-                // ==========================================
-
                 boolean success =
-                        !task.getName()
-                                .equalsIgnoreCase("FailTask");
+                        !task.getName().equalsIgnoreCase("FailTask");
 
                 if (!success) {
-
-                    throw new RuntimeException(
-                            "Task failed"
-                    );
+                    throw new RuntimeException("Task failed");
                 }
-
-                // ==========================================
-                // MARK EXECUTION COMPLETED
-                // ==========================================
 
                 repository.markTaskExecutionCompleted(
                         task.getId(),
                         attemptNumber
                 );
 
-                // ==========================================
-                // MARK TASK COMPLETED
-                // ==========================================
-
-                task.setStatus(
-                        TaskStatus.COMPLETED
-                );
-
+                task.setStatus(TaskStatus.COMPLETED);
                 repository.updateStatus(task);
 
                 System.out.println(
-                        workerName
-                                + " completed "
-                                + task.getName()
+                        workerName + " completed " + task.getName()
                 );
 
             } catch (InterruptedException e) {
 
                 Thread.currentThread().interrupt();
                 stopHeartbeat();
+
                 if (task != null && attemptNumber > 0) {
-
                     try {
-
                         repository.markTaskExecutionFailed(
                                 task.getId(),
                                 attemptNumber
                         );
-
                     } catch (Exception dbException) {
-
                         System.out.println(
                                 workerName
                                         + " failed to mark interrupted execution."
@@ -301,11 +184,7 @@ public class Worker implements Runnable {
                     }
                 }
 
-                System.out.println(
-                        workerName
-                                + " interrupted."
-                );
-
+                System.out.println(workerName + " interrupted.");
                 break;
 
             } catch (Exception e) {
@@ -322,54 +201,30 @@ public class Worker implements Runnable {
                                 + attemptNumber
                 );
 
-                // ==========================================
-                // MARK EXECUTION FAILED
-                // ==========================================
-
                 try {
-
                     repository.markTaskExecutionFailed(
                             task.getId(),
                             attemptNumber
                     );
-
                 } catch (Exception dbException) {
-
                     System.out.println(
                             workerName
                                     + " failed to mark execution as FAILED."
                     );
                 }
 
-                // ==========================================
-                // HANDLE RETRY
-                // ==========================================
                 stopHeartbeat();
                 handleFailure(task);
-            }
-
-            finally {
-
+            } finally {
                 stopHeartbeat();
             }
         }
 
-        // ==========================================
-        // CLEANUP
-        // ==========================================
-
         stopHeartbeat();
-
         heartbeatExecutor.shutdownNow();
 
-        System.out.println(
-                workerName + " stopped."
-        );
+        System.out.println(workerName + " stopped.");
     }
-
-    // ==========================================
-    // START HEARTBEAT
-    // ==========================================
 
     private void startHeartbeat(Task task) {
 
@@ -378,16 +233,11 @@ public class Worker implements Runnable {
         heartbeatTask =
                 heartbeatExecutor.scheduleAtFixedRate(
                         () -> {
-
                             try {
-
                                 boolean renewed =
-                                        repository.renewTaskLock(
-                                                task.getId()
-                                        );
+                                        repository.renewTaskLock(task.getId());
 
                                 if (!renewed) {
-
                                     System.out.println(
                                             workerName
                                                     + " failed to renew lock for "
@@ -396,14 +246,12 @@ public class Worker implements Runnable {
                                 }
 
                             } catch (Exception e) {
-
                                 System.out.println(
                                         workerName
                                                 + " heartbeat failed for "
                                                 + task.getName()
                                 );
                             }
-
                         },
                         HEARTBEAT_INTERVAL_SECONDS,
                         HEARTBEAT_INTERVAL_SECONDS,
@@ -411,29 +259,15 @@ public class Worker implements Runnable {
                 );
     }
 
-    // ==========================================
-    // STOP HEARTBEAT
-    // ==========================================
-
     private void stopHeartbeat() {
 
         if (heartbeatTask != null) {
-
             heartbeatTask.cancel(false);
-
             heartbeatTask = null;
         }
     }
 
-    // ==========================================
-    // HANDLE FAILURE
-    // ==========================================
-
     private void handleFailure(Task task) {
-
-        // ==========================================
-        // INCREMENT RETRY COUNT
-        // ==========================================
 
         task.incrementRetryCount();
 
@@ -443,22 +277,10 @@ public class Worker implements Runnable {
                         + task.getRetryCount()
         );
 
-        // ==========================================
-        // RETRY AVAILABLE
-        // ==========================================
+        if (task.getRetryCount() <= task.getMaxRetries()) {
 
-        if (task.getRetryCount()
-                <= task.getMaxRetries()) {
-
-            task.setStatus(
-                    TaskStatus.RETRYING
-            );
-
+            task.setStatus(TaskStatus.RETRYING);
             repository.updateStatus(task);
-
-            // ==========================================
-            // EXPONENTIAL BACKOFF
-            // ==========================================
 
             long delay =
                     (long) Math.pow(
@@ -474,11 +296,8 @@ public class Worker implements Runnable {
             );
 
             try {
-
                 Thread.sleep(delay);
-
             } catch (InterruptedException e) {
-
                 Thread.currentThread().interrupt();
 
                 System.out.println(
@@ -489,30 +308,14 @@ public class Worker implements Runnable {
                 return;
             }
 
-            // ==========================================
-            // REQUEUE
-            // ==========================================
-
             if (running) {
-
                 queue.addTask(task);
             }
 
         } else {
 
-            // ==========================================
-            // PERMANENT FAILURE
-            // ==========================================
-
-            task.setStatus(
-                    TaskStatus.FAILED
-            );
-
+            task.setStatus(TaskStatus.FAILED);
             repository.updateStatus(task);
-
-            // ==========================================
-            // MOVE TO DLQ
-            // ==========================================
 
             repository.moveToDeadLetterQueue(
                     task,
@@ -520,8 +323,7 @@ public class Worker implements Runnable {
             );
 
             System.out.println(
-                    task.getName()
-                            + " permanently failed."
+                    task.getName() + " permanently failed."
             );
         }
     }

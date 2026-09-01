@@ -16,288 +16,137 @@ import java.util.concurrent.TimeUnit;
 
 public class Main {
 
-    public static void main(String[] args)
-            throws Exception {
+    public static void main(String[] args) throws Exception {
+        System.out.println("Starting Task Queue System...");
 
-        System.out.println(
-                "Starting Task Queue System..."
-        );
+        TaskRepository repository = new TaskRepository();
+        TaskQueue queue = new TaskQueue();
 
-        // ==========================================
-        // DATABASE
-        // ==========================================
-
-        TaskRepository repository =
-                new TaskRepository();
-
-        // ==========================================
-        // TASK QUEUE
-        // ==========================================
-
-        TaskQueue queue =
-                new TaskQueue();
-
-        // ==========================================
-        // RECOVER QUEUED TASKS
-        // ==========================================
-
-        List<Task> queuedTasks =
-                repository.findByStatus(
-                        TaskStatus.QUEUED
-                );
+        // Restore tasks that were waiting when the application stopped.
+        List<Task> queuedTasks = repository.findByStatus(TaskStatus.QUEUED);
 
         for (Task task : queuedTasks) {
-
             queue.addTask(task);
         }
 
         System.out.println(
-                "Recovered "
-                        + queuedTasks.size()
-                        + " queued tasks."
+                "Recovered " + queuedTasks.size() + " queued tasks."
         );
 
-        // ==========================================
-        // RECOVER RETRYING TASKS
-        // ==========================================
-
+        // RETRYING tasks can safely be returned to the queue.
         List<Task> retryingTasks =
-                repository.findByStatus(
-                        TaskStatus.RETRYING
-                );
+                repository.findByStatus(TaskStatus.RETRYING);
 
         for (Task task : retryingTasks) {
-
-            /*
-             * RETRYING tasks are safe to put back
-             * into the queue.
-             */
-
-            task.setStatus(
-                    TaskStatus.QUEUED
-            );
-
+            task.setStatus(TaskStatus.QUEUED);
             repository.updateStatus(task);
-
             queue.addTask(task);
         }
 
         System.out.println(
-                "Recovered "
-                        + retryingTasks.size()
-                        + " retrying tasks."
+                "Recovered " + retryingTasks.size() + " retrying tasks."
         );
-
-        // ==========================================
-        // RECOVER INTERRUPTED EXECUTIONS
-        // ==========================================
 
         int interruptedExecutions =
                 repository.recoverInterruptedExecutions();
 
         System.out.println(
-                "Recovered "
-                        + interruptedExecutions
+                "Recovered " + interruptedExecutions
                         + " interrupted executions."
         );
 
-        // ==========================================
-        // RECOVER INTERRUPTED RUNNING TASKS
-        // ==========================================
-
+        // A RUNNING task may belong to a worker from a previous instance.
+        // Requeue it so processing can continue after restart.
         List<Task> runningTasks =
-                repository.findByStatus(
-                        TaskStatus.RUNNING
-                );
+                repository.findByStatus(TaskStatus.RUNNING);
 
         for (Task task : runningTasks) {
-
-            /*
-             * A RUNNING task may belong to a worker
-             * from a previous application instance.
-             *
-             * Since the application has restarted,
-             * put it back into QUEUED state.
-             */
-
-            task.setStatus(
-                    TaskStatus.QUEUED
-            );
-
+            task.setStatus(TaskStatus.QUEUED);
             repository.updateStatus(task);
-
             queue.addTask(task);
         }
 
         System.out.println(
-                "Recovered "
-                        + runningTasks.size()
-                        + " interrupted tasks."
+                "Recovered " + runningTasks.size() + " interrupted tasks."
         );
 
-        // ==========================================
-        // START TASK RECOVERY SERVICE
-        // ==========================================
-
         TaskRecoveryService recoveryService =
-                new TaskRecoveryService(
-                        repository,
-                        queue,
-                        30
-                );
+                new TaskRecoveryService(repository, queue, 30);
 
         recoveryService.start();
-
-        // ==========================================
-        // CREATE WORKER THREAD POOL
-        // ==========================================
 
         ExecutorService executor =
                 Executors.newFixedThreadPool(3);
 
-        List<Worker> workers =
-                new ArrayList<>();
-
-        // ==========================================
-        // CREATE WORKERS
-        // ==========================================
+        List<Worker> workers = new ArrayList<>();
 
         for (int i = 1; i <= 3; i++) {
-
-            Worker worker =
+            workers.add(
                     new Worker(
                             "Worker-" + i,
                             queue,
                             repository
-                    );
-
-            workers.add(worker);
+                    )
+            );
         }
 
-        // ==========================================
-        // START HTTP SERVER
-        // ==========================================
-
         TaskHttpServer server =
-                new TaskHttpServer(
-                        repository,
-                        queue
-                );
+                new TaskHttpServer(repository, queue);
 
         server.start();
 
-        // ==========================================
-        // START WORKERS
-        // ==========================================
-
         for (Worker worker : workers) {
-
             executor.submit(worker);
         }
 
-        // ==========================================
-        // SHUTDOWN HOOK
-        // ==========================================
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(() -> {
+                    System.out.println(
+                            "\nShutting down Task Queue System..."
+                    );
 
-        Runtime.getRuntime()
-                .addShutdownHook(
-                        new Thread(() -> {
+                    System.out.println("Stopping HTTP server...");
+                    server.stop();
 
+                    System.out.println("Stopping workers...");
+
+                    for (Worker worker : workers) {
+                        worker.shutdown();
+                    }
+
+                    executor.shutdown();
+
+                    try {
+                        boolean finished =
+                                executor.awaitTermination(
+                                        30,
+                                        TimeUnit.SECONDS
+                                );
+
+                        if (!finished) {
                             System.out.println(
-                                    "\nShutting down Task Queue System..."
+                                    "Workers did not finish within 30 seconds."
                             );
-
-                            // ==========================================
-                            // 1. STOP HTTP SERVER
-                            // ==========================================
-
                             System.out.println(
-                                    "Stopping HTTP server..."
+                                    "Forcing worker shutdown..."
                             );
+                            executor.shutdownNow();
+                        }
 
-                            server.stop();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        executor.shutdownNow();
+                    }
 
-                            // ==========================================
-                            // 2. STOP ACCEPTING NEW WORK
-                            // ==========================================
+                    System.out.println("Stopping recovery service...");
+                    recoveryService.stop();
 
-                            System.out.println(
-                                    "Stopping workers..."
-                            );
-
-                            for (Worker worker :
-                                    workers) {
-
-                                worker.shutdown();
-                            }
-
-                            // ==========================================
-                            // 3. SHUTDOWN EXECUTOR
-                            // ==========================================
-
-                            executor.shutdown();
-
-                            try {
-
-                                /*
-                                 * Give currently executing
-                                 * workers up to 30 seconds
-                                 * to finish.
-                                 */
-
-                                boolean finished =
-                                        executor.awaitTermination(
-                                                30,
-                                                TimeUnit.SECONDS
-                                        );
-
-                                if (!finished) {
-
-                                    System.out.println(
-                                            "Workers did not finish within 30 seconds."
-                                    );
-
-                                    System.out.println(
-                                            "Forcing worker shutdown..."
-                                    );
-
-                                    executor.shutdownNow();
-                                }
-
-                            } catch (InterruptedException e) {
-
-                                Thread.currentThread()
-                                        .interrupt();
-
-                                executor.shutdownNow();
-                            }
-
-                            // ==========================================
-                            // 4. STOP RECOVERY SERVICE
-                            // ==========================================
-
-                            System.out.println(
-                                    "Stopping recovery service..."
-                            );
-
-                            recoveryService.stop();
-
-                            // ==========================================
-                            // FINAL MESSAGE
-                            // ==========================================
-
-                            System.out.println(
-                                    "Task Queue System stopped."
-                            );
-                        })
-                );
-
-        // ==========================================
-        // SYSTEM READY
-        // ==========================================
-
-        System.out.println(
-                "Task Queue System is running."
+                    System.out.println(
+                            "Task Queue System stopped."
+                    );
+                })
         );
+
+        System.out.println("Task Queue System is running.");
     }
 }
