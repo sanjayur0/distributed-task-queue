@@ -112,7 +112,9 @@ src/main/java/com/sanjay/taskqueue
 │   └── TaskRecoveryService.java
 └── worker
     └── Worker.java
-Task Lifecycle
+
+## Task Lifecycle
+
 QUEUED
   |
   v
@@ -129,7 +131,7 @@ RETRYING
                  |
                  v
                 DLQ
-Task Priority
+## Task Priority
 
 Tasks support three priority levels:
 
@@ -140,7 +142,7 @@ LOW	3
 
 Lower priority value means higher processing priority.
 
-Task Status
+## Task Status
 
 The system supports:
 
@@ -150,7 +152,8 @@ RETRYING
 COMPLETED
 FAILED
 CANCELLED
-Database Configuration
+
+## Database Configuration
 
 The application requires PostgreSQL.
 
@@ -165,7 +168,7 @@ export DB_PASSWORD="your_password"
 
 The application reads the password from the DB_PASSWORD environment variable.
 
-Redis
+## Redis
 
 The task queue uses Redis through Jedis.
 
@@ -186,7 +189,8 @@ mvn clean package
 Run tests:
 
 mvn clean test
-Running the Application
+
+## Running the Application
 
 Set the database password:
 
@@ -197,57 +201,59 @@ Then run the application using Maven or your IDE.
 The HTTP server runs on:
 
 http://localhost:8080
-API Endpoints
+
+## API Endpoints
+
 Create Task
 POST /tasks
 
 Example:
-
 curl -X POST "http://localhost:8080/tasks?name=SendEmail&idempotencyKey=email-001&priority=HIGH"
+
 Get All Tasks
 GET /tasks
 
 Example:
-
 curl "http://localhost:8080/tasks"
+
 Filter Tasks by Status
 GET /tasks?status=QUEUED
 
 Example:
-
 curl "http://localhost:8080/tasks?status=COMPLETED"
+
 Get Task
 GET /tasks/{id}
 
 Example:
-
 curl "http://localhost:8080/tasks/<task-id>"
+
 Cancel Task
 DELETE /tasks/{id}
 
 Example:
-
 curl -X DELETE "http://localhost:8080/tasks/<task-id>"
+
 Dead Letter Queue
 Get DLQ Tasks
 GET /dlq
 
 Example:
-
 curl "http://localhost:8080/dlq"
+
 Retry DLQ Task
 POST /dlq/{id}/retry
 
 Example:
-
 curl -X POST "http://localhost:8080/dlq/<dlq-id>/retry"
+
 Delete DLQ Task
 DELETE /dlq/{id}
 
 Example:
-
 curl -X DELETE "http://localhost:8080/dlq/<dlq-id>"
-Idempotency
+
+## Idempotency
 
 Each task requires an idempotency key.
 
@@ -259,7 +265,7 @@ idempotencyKey=email-001
 
 Submitting the same key again does not create another task.
 
-Retry Mechanism
+## Retry Mechanism
 
 Failed tasks can be retried automatically.
 
@@ -274,7 +280,7 @@ The default maximum retry count is:
 
 A retry can be scheduled with a delay before the task is placed back into the queue.
 
-Dead Letter Queue
+## Dead Letter Queue
 
 When a task cannot be successfully processed after the configured number of retries, it is moved to the Dead Letter Queue.
 
@@ -291,7 +297,7 @@ Such tasks are recovered and placed back into the queue.
 
 This protects against tasks becoming permanently stuck when a worker fails unexpectedly.
 
-Database Persistence
+## Database Persistence
 
 PostgreSQL stores task information including:
 
@@ -305,7 +311,7 @@ Maximum retries
 
 DLQ information is also persisted.
 
-Testing
+## Testing
 
 Run:
 
@@ -313,7 +319,8 @@ mvn clean test
 
 The project currently passes the Maven test/build verification.
 
-Future Improvements
+## Future Improvements
+
 Authentication and authorization
 Better JSON request/response handling
 Docker and Docker Compose support
